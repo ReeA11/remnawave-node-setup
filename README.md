@@ -10,5 +10,5 @@ bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/re
 
 ## 🗑 Удаление 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/setup-remnanode.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/remove-remnanode.sh)
 ```
