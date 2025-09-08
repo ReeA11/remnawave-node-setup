@@ -29,7 +29,7 @@ mkdir -p /opt/remnanode
 cd /opt/remnanode
 
 # --- Запрос сертификата ---
-read -p "[*] Вставьте строку сертификата (формат SSL_CERT=CERT_FROM_MAIN_PANEL): " CERT_CONTENT
+read -p "[*] Вставьте строку сертификата (формат SSL_CERT=CERT_FROM_MAIN_PANEL): " CERT_CONTENT </dev/tty
 
 # --- Создание .env ---
 echo "[*] Создаю .env..."
