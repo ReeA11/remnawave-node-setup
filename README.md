@@ -5,4 +5,4 @@
 ## 🚀 Установка одной командой
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/USERNAME/remnanode-setup/main/setup-remnanode.sh | sudo bash
+curl -fsSL https://github.com/ReeA11/remnawave-node-setup/blob/master/setup-remnanode.sh | sudo bash
