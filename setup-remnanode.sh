@@ -28,13 +28,17 @@ echo "[*] Готовлю окружение..."
 mkdir -p /opt/remnanode
 cd /opt/remnanode
 
+# --- Запрос порта с дефолтом 2222 ---
+read -p "[*] Введите порт для приложения (по умолчанию 2222): " APP_PORT </dev/tty
+APP_PORT=${APP_PORT:-2222}
+
 # --- Запрос сертификата ---
 read -p "[*] Вставьте строку сертификата (формат SSL_CERT=CERT_FROM_MAIN_PANEL): " CERT_CONTENT </dev/tty
 
 # --- Создание .env ---
 echo "[*] Создаю .env..."
 cat > .env <<EOF
-APP_PORT=2222
+APP_PORT=$APP_PORT
 
 $CERT_CONTENT
 EOF
@@ -53,7 +57,20 @@ services:
       - .env
 EOF
 
-# --- Запуск ---
+# --- Настройка UFW (если включен) ---
+if command -v ufw &> /dev/null; then
+    UFW_STATUS=$(ufw status | head -n1)
+    if [[ "$UFW_STATUS" == "Status: active" ]]; then
+        echo "[*] UFW включен. Разрешаю TCP-порт $APP_PORT..."
+        ufw allow "$APP_PORT"/tcp
+    else
+        echo "[*] UFW установлен, но не активен. Пропускаем настройку порта."
+    fi
+else
+    echo "[*] UFW не найден. Пропускаем настройку порта."
+fi
+
+# --- Запуск контейнера ---
 echo "[*] Запускаю контейнер..."
 docker compose up -d
 docker compose logs -f -t
