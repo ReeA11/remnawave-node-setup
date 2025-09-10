@@ -108,13 +108,13 @@ echo "[*] Добавляю необходимые порты..."
 
 # Добавляем SSH порт (стандартный 22)
 if [[ "$SSH_PORT" = "22" ]]; then
-  ufw allow 22/tcp
+  ufw allow 22/tcp comment 'SSH Port'
   echo "[*] ✓ Добавлен порт SSH: 22"
 fi
 
 # Добавляем текущий SSH порт (если он нестандартный)
 if [[ -n "$SSH_PORT" && "$SSH_PORT" != "22" && "$SSH_PORT" != "$REMNANODE_PORT" && "$SSH_PORT" != "443" ]]; then
-    ufw allow ${SSH_PORT}/tcp
+    ufw allow ${SSH_PORT}/tcp  comment 'SSH Port'
     echo "[*] ✓ Добавлен текущий SSH-порт: $SSH_PORT"
 fi
 
@@ -123,7 +123,7 @@ ufw allow "$REMNANODE_PORT"/tcp
 echo "[*] ✓ Добавлен порт RemnaNode: $REMNANODE_PORT"
 
 # Добавляем HTTPS порт
-ufw allow 443/tcp
+ufw allow 443/tcp comment 'HTTPS Port'
 echo "[*] ✓ Добавлен порт HTTPS: 443"
 
 echo ""
