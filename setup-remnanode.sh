@@ -1,4 +1,5 @@
 #!/bin/bash
+clear
 set -e
 
 echo "=== RemnaNode Setup Script ==="
@@ -107,3 +108,8 @@ fi
 echo "[*] Запускаю контейнер..."
 docker compose up -d
 docker compose logs -f -t
+echo
+echo "Нажмите Enter, чтобы открыть меню установки..."
+read -r   # ждём нажатия Enter
+
+bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/menu.sh)

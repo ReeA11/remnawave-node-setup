@@ -1,4 +1,5 @@
 #!/bin/bash
+clear
 set -e
 
 echo "=== RemnaNode Removal Script ==="
@@ -33,3 +34,8 @@ else
 fi
 
 echo "=== RemnaNode успешно удалён ==="
+echo
+echo "Нажмите Enter, чтобы открыть меню установки..."
+read -r   # ждём нажатия Enter
+
+bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/menu.sh)

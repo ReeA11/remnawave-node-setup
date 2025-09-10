@@ -1,4 +1,5 @@
 #!/bin/bash
+clear
 set -e
 
 echo "=== RemnaNode Security Setup Script ==="
@@ -19,15 +20,15 @@ else
     REMNANODE_PORT=${REMNANODE_PORT:-2222}
 fi
 
+# --- Enable UFW ---
+ufw --force enable
+
 # --- Запрос блокировки пинга ---
-read -p "[*] Желаете запретить пинг сервера? (y/N): " BLOCK_PING </dev/tty
+read -p "[*] Желаете запретить пинг сервера? Правила before.rules будут перезаписаны (y/N): " BLOCK_PING </dev/tty
 BLOCK_PING=${BLOCK_PING:-N}
 
 if [[ "$BLOCK_PING" =~ ^[Yy]$ ]]; then
     echo "[*] Блокирую пинг сервера..."
-
-    # Создаём резервную копию
-    cp /etc/ufw/before.rules /etc/ufw/before.rules.bak.$(date +%F-%H%M%S)
 
     # Перезаписываем правила
     cat > /etc/ufw/before.rules <<'EOF'
@@ -94,6 +95,7 @@ COMMIT
 EOF
 
     echo "[*] Пинг сервера заблокирован."
+    ufw reload
 fi
 
 # --- Настройка UFW ---
@@ -102,15 +104,13 @@ echo "[*] Настраиваю фаервол..."
 # Определяем текущий SSH-порт
 SSH_PORT=$(ss -tnlp | grep -i sshd | awk '{print $4}' | sed 's/.*://g' | sort -u | head -n1)
 
-# Сброс UFW правил и включение
-ufw --force reset
-ufw --force enable
-
 echo "[*] Добавляю необходимые порты..."
 
 # Добавляем SSH порт (стандартный 22)
-ufw allow 22/tcp
-echo "[*] ✓ Добавлен порт SSH: 22"
+if [[ "$SSH_PORT" = "22" ]]; then
+  ufw allow 22/tcp
+  echo "[*] ✓ Добавлен порт SSH: 22"
+fi
 
 # Добавляем текущий SSH порт (если он нестандартный)
 if [[ -n "$SSH_PORT" && "$SSH_PORT" != "22" && "$SSH_PORT" != "$REMNANODE_PORT" && "$SSH_PORT" != "443" ]]; then
@@ -126,17 +126,10 @@ echo "[*] ✓ Добавлен порт RemnaNode: $REMNANODE_PORT"
 ufw allow 443/tcp
 echo "[*] ✓ Добавлен порт HTTPS: 443"
 
-# Перезапускаем ssh
-systemctl disable ssh.socket 2>/dev/null || true
-systemctl restart ssh
-
 echo ""
 echo "=== Настройка безопасности завершена ==="
 echo "Активные порты:"
-echo "  - SSH: 22"
-if [[ -n "$SSH_PORT" && "$SSH_PORT" != "22" && "$SSH_PORT" != "$REMNANODE_PORT" && "$SSH_PORT" != "443" ]]; then
-    echo "  - SSH (текущий): $SSH_PORT"
-fi
+echo "  - SSH: $SSH_PORT"
 echo "  - RemnaNode: $REMNANODE_PORT"
 echo "  - HTTPS: 443"
 echo ""
@@ -144,3 +137,8 @@ if [[ "$BLOCK_PING" =~ ^[Yy]$ ]]; then
     echo "✓ Пинг сервера заблокирован"
 fi
 echo "✓ UFW включен и настроен"
+echo
+echo "Нажмите Enter, чтобы вернуться в меню..."
+read -r   # ждём нажатия Enter
+
+bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/menu.sh)
