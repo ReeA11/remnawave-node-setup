@@ -18,8 +18,8 @@ fi
 # --- Остановка и удаление контейнера ---
 if docker ps -a --format '{{.Names}}' | grep -q "^remnanode$"; then
     echo "[*] Останавливаю и удаляю контейнер remnanode..."
-    docker compose -f /opt/remnanode/docker-compose.yml down || true
-    docker rm -f remnanode || true
+    docker compose -f /opt/remnanode/docker-compose.yml down 2>/dev/null || true
+    docker rm -f remnanode 2>/dev/null || true
 else
     echo "[*] Контейнер remnanode не найден. Пропускаю."
 fi

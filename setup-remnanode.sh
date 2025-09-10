@@ -9,6 +9,39 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
+# --- Проверка на уже установленный RemnaNode ---
+REMNANODE_INSTALLED=false
+
+# Проверяем контейнер remnanode
+if command -v docker &> /dev/null; then
+    if docker ps -a --format '{{.Names}}' | grep -q "^remnanode$"; then
+        echo "[!] Найден контейнер remnanode"
+        REMNANODE_INSTALLED=true
+    fi
+fi
+
+# Проверяем директорию
+if [ -d "/opt/remnanode" ]; then
+    echo "[!] Найдена директория /opt/remnanode"
+    REMNANODE_INSTALLED=true
+fi
+
+# Если RemnaNode уже установлен, спрашиваем о переустановке
+if [ "$REMNANODE_INSTALLED" = true ]; then
+    echo "[!] RemnaNode уже установлен в системе."
+    read -p "Желаете удалить текущую установку и переустановить? (y/N): " REINSTALL_CHOICE </dev/tty
+    REINSTALL_CHOICE=${REINSTALL_CHOICE:-N}
+
+    if [[ "$REINSTALL_CHOICE" =~ ^[Yy]$ ]]; then
+        echo "[*] Удаляю текущую установку RemnaNode..."
+        bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/remove-remnanode.sh)
+        echo "[*] Предыдущая установка RemnaNode удалена. Продолжаю установку..."
+    else
+        echo "[*] Установка отменена пользователем."
+        exit 0
+    fi
+fi
+
 # --- Проверка Docker ---
 if ! command -v docker &> /dev/null; then
     echo "[*] Docker не найден. Устанавливаю Docker..."
