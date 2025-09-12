@@ -45,7 +45,7 @@ case $CHOICE in
         bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/security-setup.sh)
         ;;
     *)
-        echo "${YELLOW}[!] Неверный выбор. Выход.${NC}"
+        echo -e "${YELLOW}[!] Неверный выбор. Выход.${NC}"
         exit 1
         ;;
 esac
