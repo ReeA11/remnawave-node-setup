@@ -2,11 +2,23 @@
 clear
 set -e
 
-echo "=== RemnaNode Security Setup Script ==="
+# Color definitions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+GRAY='\033[0;37m'
+NC='\033[0m' # No Color
+
+printf "${WHITE}🚀  RemnaNode Security Setup Script${NC}\n"
+printf "${GRAY}$(printf '─%.0s' $(seq 1 40))${NC}\n\n"
 
 # --- Проверка root ---
 if [[ "$EUID" -ne 0 ]]; then
-  echo "Запусти скрипт от root: sudo $0"
+  echo -e "${GRAY}Запусти скрипт от root: sudo $0${NC}"
   exit 1
 fi
 
@@ -14,7 +26,7 @@ fi
 REMNANODE_PORT=""
 if [ -f "/opt/remnanode/.env" ]; then
     REMNANODE_PORT=$(grep "^APP_PORT=" /opt/remnanode/.env | cut -d'=' -f2)
-    echo "[*] Обнаружен порт RemnaNode: $REMNANODE_PORT"
+    echo "🔍 Обнаружен порт RemnaNode: $REMNANODE_PORT"
 else
     read -p "[*] Введите порт RemnaNode (по умолчанию 2222): " REMNANODE_PORT </dev/tty
     REMNANODE_PORT=${REMNANODE_PORT:-2222}
@@ -24,7 +36,7 @@ fi
 ufw --force enable
 
 # --- Запрос блокировки пинга ---
-read -p "[*] Желаете запретить пинг сервера? Правила before.rules будут перезаписаны (y/N): " BLOCK_PING </dev/tty
+read -p "📝 Желаете запретить пинг сервера? Правила before.rules будут перезаписаны (y/N): " BLOCK_PING </dev/tty
 BLOCK_PING=${BLOCK_PING:-N}
 
 if [[ "$BLOCK_PING" =~ ^[Yy]$ ]]; then
@@ -94,7 +106,7 @@ if [[ "$BLOCK_PING" =~ ^[Yy]$ ]]; then
 COMMIT
 EOF
 
-    echo "[*] Пинг сервера заблокирован."
+    echo "✅ Пинг сервера заблокирован."
     ufw reload
 fi
 
@@ -109,34 +121,35 @@ echo "[*] Добавляю необходимые порты..."
 # Добавляем SSH порт (стандартный 22)
 if [[ "$SSH_PORT" = "22" ]]; then
   ufw allow 22/tcp comment 'SSH Port'
-  echo "[*] ✓ Добавлен порт SSH: 22"
+  echo "✅ Добавлен порт SSH: 22"
 fi
 
 # Добавляем текущий SSH порт (если он нестандартный)
 if [[ -n "$SSH_PORT" && "$SSH_PORT" != "22" && "$SSH_PORT" != "$REMNANODE_PORT" && "$SSH_PORT" != "443" ]]; then
     ufw allow ${SSH_PORT}/tcp  comment 'SSH Port'
-    echo "[*] ✓ Добавлен текущий SSH-порт: $SSH_PORT"
+    echo "✅ Добавлен текущий SSH-порт: $SSH_PORT"
 fi
 
 # Добавляем порт RemnaNode
 ufw allow "$REMNANODE_PORT"/tcp
-echo "[*] ✓ Добавлен порт RemnaNode: $REMNANODE_PORT"
+echo "✅ Добавлен порт RemnaNode: $REMNANODE_PORT"
 
 # Добавляем HTTPS порт
 ufw allow 443/tcp comment 'HTTPS Port'
-echo "[*] ✓ Добавлен порт HTTPS: 443"
+echo "✅ Добавлен порт HTTPS: 443"
 
 echo ""
-echo "=== Настройка безопасности завершена ==="
-echo "Активные порты:"
+echo -e "${WHITE}🎉 Настройка безопасности завершена${NC}"
+printf "${GRAY}$(printf '─%.0s' $(seq 1 40))${NC}\n"
+echo -e "${GRAY}Активные порты:"
 echo "  - SSH: $SSH_PORT"
 echo "  - RemnaNode: $REMNANODE_PORT"
 echo "  - HTTPS: 443"
 echo ""
 if [[ "$BLOCK_PING" =~ ^[Yy]$ ]]; then
-    echo "✓ Пинг сервера заблокирован"
+    echo "✅ Пинг сервера заблокирован"
 fi
-echo "✓ UFW включен и настроен"
+echo -e "✅ UFW включен и настроен${NC}"
 echo
 echo "Нажмите Enter, чтобы вернуться в меню..."
 read -r   # ждём нажатия Enter

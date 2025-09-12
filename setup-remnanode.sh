@@ -2,11 +2,23 @@
 clear
 set -e
 
-echo "=== RemnaNode Setup Script ==="
+# Color definitions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+GRAY='\033[0;37m'
+NC='\033[0m' # No Color
+
+printf "${WHITE}🚀  RemnaNode Setup Script${NC}\n"
+printf "${GRAY}$(printf '─%.0s' $(seq 1 40))${NC}\n\n"
 
 # --- Проверка root ---
 if [[ "$EUID" -ne 0 ]]; then
-  echo "Запусти скрипт от root: sudo $0"
+  echo -e "${GRAY}Запусти скрипт от root: sudo $0${NC}"
   exit 1
 fi
 
@@ -16,20 +28,20 @@ REMNANODE_INSTALLED=false
 # Проверяем контейнер remnanode
 if command -v docker &> /dev/null; then
     if docker ps -a --format '{{.Names}}' | grep -q "^remnanode$"; then
-        echo "[!] Найден контейнер remnanode"
+        echo "🔍 Найден контейнер remnanode"
         REMNANODE_INSTALLED=true
     fi
 fi
 
 # Проверяем директорию
 if [ -d "/opt/remnanode" ]; then
-    echo "[!] Найдена директория /opt/remnanode"
+    echo "🔍 Найдена директория /opt/remnanode"
     REMNANODE_INSTALLED=true
 fi
 
 # Если RemnaNode уже установлен, спрашиваем о переустановке
 if [ "$REMNANODE_INSTALLED" = true ]; then
-    echo "[!] RemnaNode уже установлен в системе."
+    echo "🔍 RemnaNode уже установлен в системе."
     read -p "Желаете удалить текущую установку и переустановить? (y/N): " REINSTALL_CHOICE </dev/tty
     REINSTALL_CHOICE=${REINSTALL_CHOICE:-N}
 
@@ -45,15 +57,15 @@ fi
 
 # --- Проверка Docker ---
 if ! command -v docker &> /dev/null; then
-    echo "[*] Docker не найден. Устанавливаю Docker..."
+    echo "🔍 Docker не найден. Устанавливаю Docker..."
     curl -fsSL https://get.docker.com | sh
 else
-    echo "[*] Docker установлен."
+    echo "🔍 Docker установлен."
     if ! systemctl is-active --quiet docker; then
-        echo "[*] Docker установлен, но не запущен. Запускаю сервис..."
+        echo "🔍 Docker установлен, но не запущен. Запускаю сервис..."
         systemctl start docker
     else
-        echo "[*] Docker уже запущен."
+        echo "🔍 Docker уже запущен."
     fi
 fi
 
@@ -63,11 +75,11 @@ mkdir -p /opt/remnanode
 cd /opt/remnanode
 
 # --- Запрос порта с дефолтом 2222 ---
-read -p "[*] Введите порт для приложения (по умолчанию 2222): " APP_PORT </dev/tty
+read -p "📝 Введите порт для приложения (по умолчанию 2222): " APP_PORT </dev/tty
 APP_PORT=${APP_PORT:-2222}
 
 # --- Запрос сертификата ---
-read -p "[*] Вставьте строку сертификата (формат SSL_CERT=CERT_FROM_MAIN_PANEL): " CERT_CONTENT </dev/tty
+read -p "📝 Вставьте строку сертификата (формат SSL_CERT=CERT_FROM_MAIN_PANEL): " CERT_CONTENT </dev/tty
 
 # --- Создание .env ---
 echo "[*] Создаю .env..."
@@ -95,13 +107,13 @@ EOF
 if command -v ufw &> /dev/null; then
     UFW_STATUS=$(ufw status | head -n1)
     if [[ "$UFW_STATUS" == "Status: active" ]]; then
-        echo "[*] UFW включен. Разрешаю TCP-порт $APP_PORT..."
+        echo "🔍 UFW включен. Разрешаю TCP-порт $APP_PORT..."
         ufw allow "$APP_PORT"/tcp
     else
-        echo "[*] UFW установлен, но не активен. Пропускаем настройку порта."
+        echo "🔍 UFW установлен, но не активен. Пропускаем настройку порта."
     fi
 else
-    echo "[*] UFW не найден. Пропускаем настройку порта."
+    echo "🔍 UFW не найден. Пропускаем настройку порта."
 fi
 
 # --- Запуск контейнера ---
