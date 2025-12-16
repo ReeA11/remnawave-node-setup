@@ -1,50 +1,132 @@
 #!/bin/bash
+clear
 set -e
 
-# === Настройка системы ===
-apt update -y && apt upgrade -y
+# ================== Цвета ==================
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+GRAY='\033[0;37m'
+NC='\033[0m'
 
-# === Настройка firewall ===
-ufw allow 22/tcp
-ufw allow 4444/tcp
-ufw allow 443/tcp
-ufw --force enable
+printf "${WHITE}🚀  RemnaNode Setup Script${NC}\n"
+printf "${GRAY}$(printf '─%.0s' $(seq 1 40))${NC}\n\n"
 
-# === Установка 3x-ui ===
-bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+# ================== Проверка root ==================
+if [[ "$EUID" -ne 0 ]]; then
+  echo -e "${GRAY}Запусти скрипт от root: sudo $0${NC}"
+  exit 1
+fi
 
-# === Генерация случайных данных ===
-PANEL_USER="admin$(openssl rand -hex 2)"
-PANEL_PASS="$(openssl rand -hex 4)"
-SERVER_IP=$(hostname -I | awk '{print $1}')
-UUID=$(cat /proc/sys/kernel/random/uuid)
-REMARK="TT-$(shuf -i 1-999 -n 1)"
-PRIVATE_KEY=$(openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text | grep "priv:" -A3 | tail -n +2 | tr -d '[:space:]:' | tr -d '\n')
-SHORT_IDS=$(for i in {1..5}; do head /dev/urandom | tr -dc a-f0-9 | head -c $(shuf -i 2-16 -n 1); echo -n ','; done | sed 's/,$//')
+# ================== Docker ==================
+if ! command -v docker &> /dev/null; then
+  echo "🔍 Docker не найден. Устанавливаю..."
+  curl -fsSL https://get.docker.com | sh
+else
+  echo "🔍 Docker установлен."
+  systemctl is-active --quiet docker || systemctl start docker
+fi
 
-# === Настройка панели ===
-x-ui setting -username $PANEL_USER -password $PANEL_PASS >/dev/null 2>&1
-systemctl restart x-ui
+# ================== Подготовка директории ==================
+BASE_DIR="/opt/remnanode"
+TARGET_DIR="$BASE_DIR"
+IDX=1
 
-# === Создание inbound через CLI ===
-x-ui add inbound \
-  --remark "$REMARK" \
-  --port 443 \
-  --protocol vless \
-  --settings "{\"clients\":[{\"id\":\"$UUID\",\"flow\":\"xtls-rprx-vision\",\"email\":\"$REMARK\"}]}" \
-  --streamSettings "{\"network\":\"tcp\",\"security\":\"reality\",\"realitySettings\":{\"dest\":\"github.com:443\",\"serverNames\":[\"github.com\",\"www.github.com\"],\"privateKey\":\"$PRIVATE_KEY\",\"shortIds\":[$(echo $SHORT_IDS | sed 's/,/","/g' | sed 's/^/"/;s/$/"/')],\"settings\":{\"publicKey\":\"p4zOp0WTebsKgH-hv4mWzKiZBzVE0w0w5kY3AFwz_D4\",\"fingerprint\":\"chrome\"}}}" \
-  --sniffing "{\"enabled\":true,\"destOverride\":[\"http\",\"tls\",\"quic\",\"fakedns\"]}" >/dev/null 2>&1
+while [ -d "$TARGET_DIR" ]; do
+  IDX=$((IDX+1))
+  TARGET_DIR="${BASE_DIR}${IDX}"
+done
 
-# === Перезапуск панели ===
-systemctl restart x-ui
+mkdir -p "$TARGET_DIR"
+cd "$TARGET_DIR"
 
-# === Вывод данных ===
-echo "==========================================="
-echo "✅ 3x-ui успешно установлена и настроена"
-echo "-------------------------------------------"
-echo "🌐 Панель: http://$SERVER_IP:4444"
-echo "👤 Логин: $PANEL_USER"
-echo "🔑 Пароль: $PANEL_PASS"
-echo "📦 Remark: $REMARK"
-echo "🆔 UUID: $UUID"
-echo "==========================================="
+NODE_NAME="$(basename "$TARGET_DIR")"
+
+echo -e "${GREEN}📁 Используется директория:${NC} ${YELLOW}$TARGET_DIR${NC}"
+echo -e "${GREEN}🐳 Имя контейнера:${NC} ${YELLOW}$NODE_NAME${NC}"
+
+# ================== Порт ==================
+read -p "📝 Введите порт для приложения (по умолчанию 2222): " NODE_PORT </dev/tty
+NODE_PORT=${NODE_PORT:-2222}
+
+# ================== Выбор сетевого интерфейса ==================
+echo
+echo -e "${CYAN}🌐 Доступные сетевые интерфейсы:${NC}"
+
+mapfile -t IFACES < <(
+  ip -o -4 addr show | awk '$2 != "lo" {print $2, $4}' | sed 's#/.*##'
+)
+
+if [[ "${#IFACES[@]}" -eq 0 ]]; then
+  echo -e "${RED}❌ Не найдено интерфейсов с IPv4${NC}"
+  exit 1
+fi
+
+for i in "${!IFACES[@]}"; do
+  IF_NAME=$(awk '{print $1}' <<< "${IFACES[$i]}")
+  IF_IP=$(awk '{print $2}' <<< "${IFACES[$i]}")
+  printf " ${GREEN}[%d]${NC} %-10s → ${YELLOW}%s${NC}\n" "$((i+1))" "$IF_NAME" "$IF_IP"
+done
+
+echo
+read -p "👉 Выберите интерфейс [1-${#IFACES[@]}]: " IF_CHOICE </dev/tty
+
+if ! [[ "$IF_CHOICE" =~ ^[0-9]+$ ]] || (( IF_CHOICE < 1 || IF_CHOICE > ${#IFACES[@]} )); then
+  echo -e "${RED}❌ Неверный выбор интерфейса${NC}"
+  exit 1
+fi
+
+BIND_IP=$(awk '{print $2}' <<< "${IFACES[$((IF_CHOICE-1))]}")
+
+echo -e "${GREEN}✔ Используется IP:${NC} ${YELLOW}$BIND_IP${NC}"
+
+# ================== Сертификат ==================
+read -p "📝 Вставьте значение SECRET_KEY: " SECRET_KEY </dev/tty
+
+# ================== .env ==================
+echo "[*] Создаю .env..."
+cat > .env <<EOF
+NODE_NAME=$NODE_NAME
+NODE_PORT=$NODE_PORT
+BIND_IP=$BIND_IP
+
+SECRET_KEY=$SECRET_KEY
+EOF
+
+# ================== docker-compose.yml ==================
+echo "[*] Создаю docker-compose.yml..."
+cat > docker-compose.yml <<EOF
+services:
+  $NODE_NAME:
+    container_name: $NODE_NAME
+    hostname: $NODE_NAME
+    image: remnawave/node:2.3.1
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "\${BIND_IP}:\${NODE_PORT}:\${NODE_PORT}"
+EOF
+
+# ================== UFW ==================
+if command -v ufw &> /dev/null; then
+  if ufw status | grep -q "Status: active"; then
+    echo "🔍 UFW активен. Разрешаю порт $NODE_PORT..."
+    ufw allow "$NODE_PORT"/tcp
+  fi
+fi
+
+# ================== Запуск ==================
+echo "[*] Запускаю контейнер $NODE_NAME..."
+docker compose up -d
+docker compose logs -f -t
+
+echo
+echo "Нажмите Enter, чтобы открыть меню установки..."
+read -r
+
+bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/menu.sh)
