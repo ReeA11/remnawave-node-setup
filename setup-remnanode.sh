@@ -31,7 +31,7 @@ else
   systemctl is-active --quiet docker || systemctl start docker
 fi
 
-# ================== Подготовка директории ==================
+# ================== ПРЕДВАРИТЕЛЬНЫЙ расчёт директории ==================
 BASE_DIR="/opt/remnanode"
 TARGET_DIR="$BASE_DIR"
 IDX=1
@@ -41,13 +41,11 @@ while [ -d "$TARGET_DIR" ]; do
   TARGET_DIR="${BASE_DIR}${IDX}"
 done
 
-mkdir -p "$TARGET_DIR"
-cd "$TARGET_DIR"
-
 NODE_NAME="$(basename "$TARGET_DIR")"
 
-echo -e "${GREEN}📁 Используется директория:${NC} ${YELLOW}$TARGET_DIR${NC}"
+echo -e "${GREEN}📁 Будет использована директория:${NC} ${YELLOW}$TARGET_DIR${NC}"
 echo -e "${GREEN}🐳 Имя контейнера:${NC} ${YELLOW}$NODE_NAME${NC}"
+echo
 
 # ================== Порт ==================
 read -p "📝 Введите порт для приложения (по умолчанию 2222): " NODE_PORT </dev/tty
@@ -84,8 +82,19 @@ BIND_IP=$(awk '{print $2}' <<< "${IFACES[$((IF_CHOICE-1))]}")
 
 echo -e "${GREEN}✔ Используется IP:${NC} ${YELLOW}$BIND_IP${NC}"
 
-# ================== Сертификат ==================
+# ================== SECRET_KEY ==================
 read -p "📝 Вставьте значение SECRET_KEY: " SECRET_KEY </dev/tty
+
+if [[ -z "$SECRET_KEY" ]]; then
+  echo -e "${RED}❌ SECRET_KEY не может быть пустым${NC}"
+  exit 1
+fi
+
+# ================== СОЗДАНИЕ ДИРЕКТОРИИ (ТОЛЬКО СЕЙЧАС) ==================
+echo
+echo -e "${BLUE}📁 Создаю директорию ${YELLOW}$TARGET_DIR${NC}"
+mkdir -p "$TARGET_DIR"
+cd "$TARGET_DIR"
 
 # ================== .env ==================
 echo "[*] Создаю .env..."
@@ -93,8 +102,7 @@ cat > .env <<EOF
 NODE_NAME=$NODE_NAME
 NODE_PORT=$NODE_PORT
 BIND_IP=$BIND_IP
-
-SECRET_KEY=$SECRET_KEY
+SECRET_KEY="$SECRET_KEY"
 EOF
 
 # ================== docker-compose.yml ==================
