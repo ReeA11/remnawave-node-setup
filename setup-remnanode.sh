@@ -1,127 +1,50 @@
 #!/bin/bash
-clear
 set -e
 
-# Color definitions
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-WHITE='\033[1;37m'
-GRAY='\033[0;37m'
-NC='\033[0m' # No Color
+# === Настройка системы ===
+apt update -y && apt upgrade -y
 
-printf "${WHITE}🚀  RemnaNode Setup Script${NC}\n"
-printf "${GRAY}$(printf '─%.0s' $(seq 1 40))${NC}\n\n"
+# === Настройка firewall ===
+ufw allow 22/tcp
+ufw allow 4444/tcp
+ufw allow 443/tcp
+ufw --force enable
 
-# --- Проверка root ---
-if [[ "$EUID" -ne 0 ]]; then
-  echo -e "${GRAY}Запусти скрипт от root: sudo $0${NC}"
-  exit 1
-fi
+# === Установка 3x-ui ===
+bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
 
-# --- Проверка на уже установленный RemnaNode ---
-REMNANODE_INSTALLED=false
+# === Генерация случайных данных ===
+PANEL_USER="admin$(openssl rand -hex 2)"
+PANEL_PASS="$(openssl rand -hex 4)"
+SERVER_IP=$(hostname -I | awk '{print $1}')
+UUID=$(cat /proc/sys/kernel/random/uuid)
+REMARK="TT-$(shuf -i 1-999 -n 1)"
+PRIVATE_KEY=$(openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text | grep "priv:" -A3 | tail -n +2 | tr -d '[:space:]:' | tr -d '\n')
+SHORT_IDS=$(for i in {1..5}; do head /dev/urandom | tr -dc a-f0-9 | head -c $(shuf -i 2-16 -n 1); echo -n ','; done | sed 's/,$//')
 
-# Проверяем контейнер remnanode
-if command -v docker &> /dev/null; then
-    if docker ps -a --format '{{.Names}}' | grep -q "^remnanode$"; then
-        echo "🔍 Найден контейнер remnanode"
-        REMNANODE_INSTALLED=true
-    fi
-fi
+# === Настройка панели ===
+x-ui setting -username $PANEL_USER -password $PANEL_PASS >/dev/null 2>&1
+systemctl restart x-ui
 
-# Проверяем директорию
-if [ -d "/opt/remnanode" ]; then
-    echo "🔍 Найдена директория /opt/remnanode"
-    REMNANODE_INSTALLED=true
-fi
+# === Создание inbound через CLI ===
+x-ui add inbound \
+  --remark "$REMARK" \
+  --port 443 \
+  --protocol vless \
+  --settings "{\"clients\":[{\"id\":\"$UUID\",\"flow\":\"xtls-rprx-vision\",\"email\":\"$REMARK\"}]}" \
+  --streamSettings "{\"network\":\"tcp\",\"security\":\"reality\",\"realitySettings\":{\"dest\":\"github.com:443\",\"serverNames\":[\"github.com\",\"www.github.com\"],\"privateKey\":\"$PRIVATE_KEY\",\"shortIds\":[$(echo $SHORT_IDS | sed 's/,/","/g' | sed 's/^/"/;s/$/"/')],\"settings\":{\"publicKey\":\"p4zOp0WTebsKgH-hv4mWzKiZBzVE0w0w5kY3AFwz_D4\",\"fingerprint\":\"chrome\"}}}" \
+  --sniffing "{\"enabled\":true,\"destOverride\":[\"http\",\"tls\",\"quic\",\"fakedns\"]}" >/dev/null 2>&1
 
-# Если RemnaNode уже установлен, спрашиваем о переустановке
-if [ "$REMNANODE_INSTALLED" = true ]; then
-    echo "🔍 RemnaNode уже установлен в системе."
-    read -p "Желаете удалить текущую установку и переустановить? (y/N): " REINSTALL_CHOICE </dev/tty
-    REINSTALL_CHOICE=${REINSTALL_CHOICE:-N}
+# === Перезапуск панели ===
+systemctl restart x-ui
 
-    if [[ "$REINSTALL_CHOICE" =~ ^[Yy]$ ]]; then
-        echo "[*] Удаляю текущую установку RemnaNode..."
-        bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/remove-remnanode.sh)
-        echo "[*] Предыдущая установка RemnaNode удалена. Продолжаю установку..."
-    else
-        echo "[*] Установка отменена пользователем."
-        exit 0
-    fi
-fi
-
-# --- Проверка Docker ---
-if ! command -v docker &> /dev/null; then
-    echo "🔍 Docker не найден. Устанавливаю Docker..."
-    curl -fsSL https://get.docker.com | sh
-else
-    echo "🔍 Docker установлен."
-    if ! systemctl is-active --quiet docker; then
-        echo "🔍 Docker установлен, но не запущен. Запускаю сервис..."
-        systemctl start docker
-    else
-        echo "🔍 Docker уже запущен."
-    fi
-fi
-
-# --- Создание папки ---
-echo "[*] Готовлю окружение..."
-mkdir -p /opt/remnanode
-cd /opt/remnanode
-
-# --- Запрос порта с дефолтом 2222 ---
-read -p "📝 Введите порт для приложения (по умолчанию 2222): " APP_PORT </dev/tty
-APP_PORT=${APP_PORT:-2222}
-
-# --- Запрос сертификата ---
-read -p "📝 Вставьте строку сертификата (формат SSL_CERT=CERT_FROM_MAIN_PANEL): " CERT_CONTENT </dev/tty
-
-# --- Создание .env ---
-echo "[*] Создаю .env..."
-cat > .env <<EOF
-APP_PORT=$APP_PORT
-
-$CERT_CONTENT
-EOF
-
-# --- Создание docker-compose.yml ---
-echo "[*] Создаю docker-compose.yml..."
-cat > docker-compose.yml <<'EOF'
-services:
-  remnanode:
-    container_name: remnanode
-    hostname: remnanode
-    image: remnawave/node:latest
-    restart: always
-    network_mode: host
-    env_file:
-      - .env
-EOF
-
-# --- Настройка UFW (если включен) ---
-if command -v ufw &> /dev/null; then
-    UFW_STATUS=$(ufw status | head -n1)
-    if [[ "$UFW_STATUS" == "Status: active" ]]; then
-        echo "🔍 UFW включен. Разрешаю TCP-порт $APP_PORT..."
-        ufw allow "$APP_PORT"/tcp
-    else
-        echo "🔍 UFW установлен, но не активен. Пропускаем настройку порта."
-    fi
-else
-    echo "🔍 UFW не найден. Пропускаем настройку порта."
-fi
-
-# --- Запуск контейнера ---
-echo "[*] Запускаю контейнер..."
-docker compose up -d
-docker compose logs -f -t
-echo
-echo "Нажмите Enter, чтобы открыть меню установки..."
-read -r   # ждём нажатия Enter
-
-bash <(curl -Ls https://raw.githubusercontent.com/ReeA11/remnawave-node-setup/refs/heads/master/menu.sh)
+# === Вывод данных ===
+echo "==========================================="
+echo "✅ 3x-ui успешно установлена и настроена"
+echo "-------------------------------------------"
+echo "🌐 Панель: http://$SERVER_IP:4444"
+echo "👤 Логин: $PANEL_USER"
+echo "🔑 Пароль: $PANEL_PASS"
+echo "📦 Remark: $REMARK"
+echo "🆔 UUID: $UUID"
+echo "==========================================="
