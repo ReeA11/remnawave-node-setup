@@ -104,7 +104,7 @@ services:
   $NODE_NAME:
     container_name: $NODE_NAME
     hostname: $NODE_NAME
-    image: remnawave/node:2.3.1
+    image: remnawave/node:2.2.3
     restart: always
     env_file:
       - .env
