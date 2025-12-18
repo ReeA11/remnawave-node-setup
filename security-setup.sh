@@ -25,7 +25,11 @@ fi
 # --- Получение порта RemnaNode ---
 REMNANODE_PORT=""
 if [ -f "/opt/remnanode/.env" ]; then
-    REMNANODE_PORT=$(grep "^APP_PORT=" /opt/remnanode/.env | cut -d'=' -f2)
+    REMNANODE_PORT=$(
+  grep -E "^(APP_PORT|NODE_PORT)=" /opt/remnanode/.env \
+  | head -n1 \
+  | cut -d'=' -f2
+)
     echo "🔍 Обнаружен порт RemnaNode: $REMNANODE_PORT"
 else
     read -p "[*] Введите порт RemnaNode (по умолчанию 2222): " REMNANODE_PORT </dev/tty
@@ -136,7 +140,8 @@ echo "✅ Добавлен порт RemnaNode: $REMNANODE_PORT"
 
 # Добавляем HTTPS порт
 ufw allow 443/tcp comment 'HTTPS Port'
-echo "✅ Добавлен порт HTTPS: 443"
+ufw allow 8443/tcp comment 'HTTPS Port 2'
+echo "✅ Добавлены порты HTTPS: 443, 8443"
 
 echo ""
 echo -e "${WHITE}🎉 Настройка безопасности завершена${NC}"
